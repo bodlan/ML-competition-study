@@ -9,6 +9,18 @@ network = models.Sequential()
 network.add(layers.Dense(512, activation="relu", input_shape=(28 * 28,)))
 network.add(layers.Dense(10, activation="softmax"))
 network.compile(optimizer="rmsprop", loss="categorical_crossentropy", metrics=['accuracy'])
+
+digit = train_images[4]
+
+import matplotlib.pyplot as plt
+
+plt.imshow(digit, cmap=plt.cm.binary)
+plt.show()
+# slice of digits #10 to #100 (#100 not included)
+my_slice = train_images[10:100]
+# (90, 28, 28)
+print(my_slice.shape)
+
 train_images = train_images.reshape((60000, 28 * 28))
 train_images = train_images.astype('float32') / 255
 
