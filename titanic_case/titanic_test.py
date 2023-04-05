@@ -1,47 +1,93 @@
 import os
-import keras.optimizers
+
 import numpy as np
+
 import pandas as pd
-import tensorflow as tf
-from tensorflow import keras
-from keras import layers
+
+from typing import List
+from sklearn import preprocessing
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+pd.set_option('display.max_columns', None)
+
 temp_dir = os.path.join(os.path.dirname(__file__), "../temp")
 (gender_submission, test_path, train_path) = [os.path.join(temp_dir, file) for file in os.listdir(temp_dir)]
 
 train = pd.read_csv(train_path)
-print(train.columns)
 test = pd.read_csv(test_path)
-print(test.columns)
-gender_subm = pd.read_csv(gender_submission)
-print(gender_subm.shape, gender_subm.columns)
-CATEGORICAL_COLUMNS = ['Name', 'Sex',  'Ticket', 'Embarked']
-NUMERICAL_COLUMNS = ['Pclass','Age', 'SibSp','Parch', 'Fare', 'Cabin']
-train_label = train.pop('Survived')
+gender_submission = pd.read_csv(gender_submission)
 
-feature_columns = []
-for feature_name in CATEGORICAL_COLUMNS:
-    vocabulary = train[feature_name].unique()
-    feature_columns.append(tf.feature_column.categorical_column_with_vocabulary_list(feature_name, vocabulary))
-
-for feature_name in NUMERICAL_COLUMNS:
-    feature_columns.append(tf.feature_column.numeric_column(feature_name, dtype=tf.float32))
-
-print(feature_columns)
-def make_input_fn(data, label, epochs=10, shuffle=True, batch_size=128):
-    def input_fn():
-        ds = tf.data.Dataset.from_tensor_slices((dict(data), label))
-        if shuffle:
-            ds = ds.shuffle(1000)
-        ds = ds.batch(batch_size).repeat(epochs)
-        return ds
-    return input_fn()
+test_ids = test["PassengerId"]
 
 
-train_fn = make_input_fn(train, train_label)
-# TODO: change gender_subm to custom or check linear classification
-test_fn = make_input_fn(test, gender_subm, epochs=1, shuffle=False)
-linear_est = tf.estimator.LinearClassifier(feature_columns=feature_columns)
-linear_est.train(train_fn)
-result = linear_est.evaluate(test_fn)
-print(result)
+def substrings_in_string(full_str: str, substrings: List[str]):
+    for substring in substrings:
+        if full_str.find(substring) != -1:
+            return substring
+    return np.nan
 
+
+def replace_titles(x):
+    title = x['Title']
+    if title in ['Don', 'Major', 'Capt', 'Jonkheer', 'Rev', 'Col']:
+        return 'Mr'
+    elif title in ['Countess', 'Mme']:
+        return 'Mrs'
+    elif title in ['Mlle', 'Ms']:
+        return 'Miss'
+    elif title == "Dr":
+        if x['Sex'] == 'Male':
+            return 'Mr'
+        else:
+            return 'Mrs'
+    else:
+        return title
+
+
+def clean_data(data: pd.DataFrame) -> pd.DataFrame:
+    title_list = ['Mrs', 'Mr', 'Master', 'Miss', 'Major', 'Rev',
+                  'Dr', 'Ms', 'Mlle', 'Col', 'Capt', 'Mme', 'Countess',
+                  'Don', 'Jonkheer']
+    data['Title'] = data['Name'].map(lambda x: substrings_in_string(x, title_list))
+    data['Title'] = data.apply(replace_titles, axis=1)
+    cabin_list = ['A', 'B', 'C', 'D', 'E', 'F', 'T', 'G', 'Unknown']
+    data['Cabin'] = data['Cabin'].astype(str)
+    data['Deck'] = data['Cabin'].map(lambda x: substrings_in_string(x, cabin_list))
+    data['Family_Size'] = data['SibSp'] + data['Parch']
+    data['Fare_per_Person'] = data['Fare'] / (data['Family_Size'] + 1)
+    data = data.drop(["Ticket", "PassengerId", "Cabin", "Name"], axis=1)
+    cols = ["SibSp", "Parch", "Fare", "Age", "Family_Size", "Fare_per_Person"]
+    for col in cols:
+        data[col].fillna(data[col].median(), inplace=True)
+    data.Embarked.fillna("U", inplace=True)
+    return data
+
+
+train = clean_data(train)
+test = clean_data(test)
+
+le = preprocessing.LabelEncoder()
+cols = ["Sex", "Embarked", "Title", "Deck"]
+for col in cols:
+    train[col] = le.fit_transform(train[col])
+    test[col] = le.transform(test[col])
+    print(le.classes_)
+print(train.head())
+
+y = train.pop("Survived")
+x = train
+
+x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.2, random_state=42)
+
+clf = LogisticRegression(random_state=0, max_iter=1000).fit(x_train, y_train)
+predictions = clf.predict(x_val)
+
+print(accuracy_score(y_val, predictions))
+
+submission_preds = clf.predict(test)
+df = pd.DataFrame({"PassengerId": test_ids.values,
+                   "Survived": submission_preds,
+                   })
+df.to_csv("submission.csv", mode="w", index=False)
