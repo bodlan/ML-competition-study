@@ -1,5 +1,5 @@
 import os
-
+import datetime
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -164,7 +164,6 @@ logreg = LogisticRegression()
 logreg.fit(X_train, Y_train)
 Y_pred_log = logreg.predict(X_test)
 acc_log = round(logreg.score(X_train, Y_train) * 100, 2)
-print(acc_log)
 
 coeff_df = pd.DataFrame(train.columns.delete(0))
 coeff_df.columns = ['Feature']
@@ -176,50 +175,42 @@ svc = SVC()
 svc.fit(X_train, Y_train)
 Y_pred_svc = svc.predict(X_test)
 acc_svc = round(svc.score(X_train, Y_train) * 100, 2)
-print(acc_svc)
 
 knn = KNeighborsClassifier(n_neighbors=3)
 knn.fit(X_train, Y_train)
 Y_pred_knn = knn.predict(X_test)
 acc_knn = round(knn.score(X_train, Y_train) * 100, 2)
-print(acc_knn)
 
 gaussian = GaussianNB()
 gaussian.fit(X_train, Y_train)
 Y_pred_gau = gaussian.predict(X_test)
 acc_gaussian = round(gaussian.score(X_train, Y_train) * 100, 2)
-print(acc_gaussian)
 
 perceptron = Perceptron()
 perceptron.fit(X_train, Y_train)
 Y_pred_per = perceptron.predict(X_test)
 acc_perceptron = round(perceptron.score(X_train, Y_train) * 100, 2)
-print(acc_perceptron)
 
 linear_svc = LinearSVC()
 linear_svc.fit(X_train, Y_train)
 Y_pred_lin = linear_svc.predict(X_test)
 acc_linear_svc = round(linear_svc.score(X_train, Y_train) * 100, 2)
-print(acc_linear_svc)
 
 sgd = SGDClassifier()
 sgd.fit(X_train, Y_train)
 Y_pred_sgd = sgd.predict(X_test)
 acc_sgd = round(sgd.score(X_train, Y_train) * 100, 2)
-print(acc_sgd)
 
 decision_tree = DecisionTreeClassifier()
 decision_tree.fit(X_train, Y_train)
 Y_pred_tree = decision_tree.predict(X_test)
 acc_decision_tree = round(decision_tree.score(X_train, Y_train) * 100, 2)
-print(acc_decision_tree)
 
 random_forest = RandomForestClassifier(n_estimators=100)
 random_forest.fit(X_train, Y_train)
 Y_pred_forest = random_forest.predict(X_test)
 random_forest.score(X_train, Y_train)
 acc_random_forest = round(random_forest.score(X_train, Y_train) * 100, 2)
-print(acc_random_forest)
 
 models = pd.DataFrame({
     'Model': ['Support Vector Machines', 'KNN', 'Logistic Regression',
@@ -233,12 +224,21 @@ models = pd.DataFrame({
                    Y_pred_forest, Y_pred_gau, Y_pred_per,
                    Y_pred_sgd, Y_pred_lin, Y_pred_tree]})
 
-models.sort_values(by='Score', ascending=False)
+print(models.loc[:, ['Model', 'Score']].sort_values(by='Score', ascending=False))
+
+max_score_idx = models['Score'].idxmax()
+max_score = models['Score'].loc[max_score_idx]
+max_score_pred = models['Prediction'].loc[max_score_idx]
+max_score_model = models['Model'].loc[max_score_idx]
 
 submission = pd.DataFrame({
     "PassengerId": test["PassengerId"],
-    "Survived": models['Prediction'].loc[models['Score'].idxmax()]
+    "Survived": max_score_pred
 })
+with open('predictions_scores', mode='a') as file:
+    file.write("Score: " + str(max_score) + "\t")
+    file.write("Model: " + max_score_model + "\t")
+    file.write("Time: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
 submission.to_csv("submission.csv", mode="w", index=False)
 # Attempt 1
 # -------------------------------------------------------------------------------------
